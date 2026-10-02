@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Crear cuenta{% endblock %}
+{% block content %}
+<div class="auth">
+  <h2>Crea tu cuenta 🎉</h2>
+  <p class="muted">Compra entradas o publica tus propios eventos.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
+
+    <label>{{ form.rol.label }}</label>
+    <div class="roles">
+      {% for radio in form.rol %}
+        <label class="rol-card">
+          {{ radio.tag }}
+          <span class="caja">
+            <span class="icono">{% if radio.data.value == 'ESPECTADOR' %}🎫{% else %}📋{% endif %}</span>
+            <b>{{ radio.choice_label }}</b>
+            <small>{% if radio.data.value == 'ESPECTADOR' %}Compra entradas{% else %}Publica y gestiona eventos{% endif %}</small>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+    {{ form.rol.errors }}
+
+    <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+    {{ form.username }}{{ form.username.errors }}
+
+    <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+    {{ form.email }}{{ form.email.errors }}
+
+    <label for="{{ form.password1.id_for_label }}">{{ form.password1.label }}</label>
+    {{ form.password1 }}{{ form.password1.errors }}
+    <div class="ayuda">{{ form.password1.help_text|safe }}</div>
+
+    <label for="{{ form.password2.id_for_label }}">{{ form.password2.label }}</label>
+    {{ form.password2 }}{{ form.password2.errors }}
+
+    <button class="btn btn-grande" style="margin-top:1.2rem" type="submit">Crear cuenta</button>
+  </form>
+  <p class="muted centro" style="margin-top:1rem">¿Ya tienes cuenta? <a href="{% url 'login' %}">Ingresa</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ evento.titulo }}{% endblock %}
+{% block content %}
+
+{# ================= CABECERA DEL EVENTO ================= #}
+<section class="evento-hero cat-{{ evento.categoria }}">
+  <span class="gran-emoji">{{ evento.emoji }}</span>
+  <div>
+    <span class="pill">{{ evento.get_categoria_display }}</span>
+    <h1>{{ evento.titulo }}</h1>
+    <p class="artista">{{ evento.artista }}</p>
+    <ul class="meta">
+      <li>📅 {{ evento.fecha_inicio|date:"l d \d\e F \d\e Y" }} · {{ evento.fecha_inicio|date:"H:i" }} hrs</li>
+      <li>📍 {{ evento.recinto.nombre }} — {{ evento.recinto.direccion }}, {{ evento.recinto.ciudad }}</li>
+    </ul>
+  </div>
+</section>
+{% if evento.descripcion %}<p class="descripcion">{{ evento.descripcion }}</p>{% endif %}
+
+{# ================= MAPA DE SECTORES + RESUMEN ================= #}
+<div class="selector-layout" id="selector" data-max="{{ restantes }}">
+
+  <section class="mapa">
+    <h2>🗺️ Elige tu ubicación</h2>
+    <p class="muted">Toca un sector para sumar una entrada. Usa + y − para ajustar la cantidad.</p>
+
+    <div class="escenario">ESCENARIO</div>
+
+    <div class="sectores">
+      {% for s in sectores %}
+        <div class="sector tono-{{ s.tono }}{% if s.disponibles == 0 %} agotado{% endif %}"
+             style="width: {{ s.ancho }}%"
+             data-id="{{ s.id }}" data-nombre="{{ s.nombre }}"
+             data-precio="{{ s.precio|stringformat:'d' }}" data-disp="{{ s.disponibles }}">
+          <div class="sector-info">
+            <strong>{{ s.nombre }}</strong>
+            <span class="precio">$ {{ s.precio|floatformat:"0g" }}</span>
+            {% if s.disponibles == 0 %}<small class="estado agot">Agotado</small>
+            {% elif s.pocas %}<small class="estado pocas">¡Últimas {{ s.disponibles }}!</small>
+            {% else %}<small class="estado">{{ s.disponibles }} disponibles</small>{% endif %}
+          </div>
+          {% if s.disponibles > 0 %}
+          <div class="stepper">
+            <button type="button" data-accion="menos" aria-label="Quitar una entrada de {{ s.nombre }}">−</button>
+            <output>0</output>
+            <button type="button" data-accion="mas" aria-label="Agregar una entrada a {{ s.nombre }}">+</button>
+          </div>
+          {% endif %}
+        </div>
+      {% empty %}
+        <p class="muted">Este evento aún no tiene sectores publicados.</p>
+      {% endfor %}
+    </div>
+    <p class="leyenda">↑ Más cerca del escenario &nbsp;·&nbsp; Más lejos ↓</p>
+  </section>
+
+  <aside class="resumen">
+    <h3>Tu selección</h3>
+    <p id="vacio" class="muted">Aún no eliges entradas.</p>
+    <ul id="lineas" class="lineas"></ul>
+    <div class="total"><span>Total</span><strong id="total">$ 0</strong></div>
+    <p class="limite">Tickets: <b id="cuenta">0</b> de {{ restantes }} posibles en esta compra</p>
+
+    {% if user.is_authenticated and user.rol == 'ESPECTADOR' %}
+      {% if restantes == 0 %}
+        <p class="aviso">Ya tienes {{ max_tickets }} tickets en tu carro (el máximo por compra). <a href="{% url 'carro' %}">Ir al carro</a></p>
+      {% endif %}
+      <form method="post" action="{% url 'agregar_al_carro' evento.pk %}">
+        {% csrf_token %}
+        <div id="campos"></div>
+        <button class="btn btn-grande" id="btn-agregar" type="submit" disabled>Reservar y agregar al carro</button>
+      </form>
+    {% elif user.is_authenticated %}
+      <p class="aviso">Tu cuenta no es de espectador, así que no puede comprar entradas.</p>
+    {% else %}
+      <a class="btn btn-grande" href="{% url 'login' %}?next={{ request.path }}">Inicia sesión para comprar</a>
+      <p class="muted centro">¿Primera vez? <a href="{% url 'registro' %}">Crea tu cuenta</a></p>
+    {% endif %}
+    <p class="nota">⏱ Tus entradas se reservan {{ minutos_reserva }} minutos al agregarlas. Máximo {{ max_tickets }} tickets por compra.</p>
+  </aside>
+</div>
+
+<p style="margin-top:1.5rem"><a class="btn btn-ghost btn-sm" href="{% url 'home' %}#eventos">← Volver a eventos</a></p>
+{% endblock %}
+
+{% block scripts %}<script src="{% static 'js/sectores.js' %}"></script>{% endblock %}

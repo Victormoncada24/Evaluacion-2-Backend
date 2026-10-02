@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Mis entradas{% endblock %}
+{% block content %}
+<h1>🎟️ Mis entradas</h1>
+<p class="muted">Cada entrada tiene un código único. Preséntalo en el ingreso al evento.</p>
+
+{% if tickets %}
+  <div class="tickets">
+    {% for t in tickets %}
+      <article class="ticket cat-{{ t.orden.evento.categoria }}">
+        <div class="ticket-main">
+          <span class="badge">{{ t.orden.get_estado_display }}</span>
+          <h3>{{ t.emoji }} {{ t.orden.evento.titulo }}</h3>
+          <p class="artista">{{ t.orden.evento.artista }}</p>
+          <p class="muted">
+            📅 {{ t.orden.evento.fecha_inicio|date:"d/m/Y H:i" }}<br>
+            📍 {{ t.orden.evento.recinto.nombre }}, {{ t.orden.evento.recinto.ciudad }}<br>
+            🪑 Sector: <b>{{ t.detalle.sector.nombre }}</b> · Orden #{{ t.orden.pk }}
+          </p>
+        </div>
+        <div class="ticket-stub">
+          <span class="barras"></span>
+          <code>{{ t.codigo }}</code>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="vacio">
+    <span>🎫</span>
+    <p>Aún no tienes entradas compradas.</p>
+    <a class="btn" href="{% url 'home' %}#eventos">Explorar eventos</a>
+  </div>
+{% endif %}
+{% endblock %}

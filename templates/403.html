@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Acceso denegado{% endblock %}
+{% block content %}
+<div class="centrado">
+  <h1>403</h1>
+  <p>Esta sección es solo para el administrador.</p>
+  <a class="btn" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+{% endblock %}

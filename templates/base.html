@@ -1,0 +1,52 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a1f">
+  <title>{% block title %}Entradas{% endblock %} · Boletaje</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/estilo.css' %}">
+</head>
+<body>
+  {# ---------- Barra superior ---------- #}
+  <header class="nav">
+    <div class="nav-in">
+      <a class="brand" href="{% url 'home' %}"><span class="logo">🎟️</span> Boletaje</a>
+      <nav class="links">
+        <a href="{% url 'home' %}">Inicio</a>
+        <a href="{% url 'home' %}#eventos">Eventos</a>
+        {% if user.is_authenticated %}
+          {% if user.rol == 'ESPECTADOR' %}
+            <a href="{% url 'mis_entradas' %}">Mis entradas</a>
+            <a href="{% url 'carro' %}">🛒 Carro{% if CARRO_CANTIDAD %}<span class="contador">{{ CARRO_CANTIDAD }}</span>{% endif %}</a>
+          {% endif %}
+          {% if user.is_staff %}
+            <a href="{% url 'dashboard' %}">Dashboard</a>
+            <a href="{% url 'swagger-ui' %}">API Docs</a>
+          {% endif %}
+          <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Salir ({{ user.username }})</button></form>
+        {% else %}
+          <a href="{% url 'login' %}">Ingresar</a>
+          <a class="btn btn-sm" href="{% url 'registro' %}">Crear cuenta</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  {# ---------- Avisos (messages de Django) ---------- #}
+  {% if messages %}
+    <div class="mensajes">
+      {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <main>{% block content %}{% endblock %}</main>
+
+  {% include "partials/footer.html" %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

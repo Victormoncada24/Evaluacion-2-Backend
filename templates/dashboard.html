@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard de ventas</h1>
+<p class="muted">Solo se consideran órdenes PAGADO y ENTREGADO.</p>
+
+<div class="kpis">
+  <div class="kpi"><span>Ingresos</span><strong>$ {{ ingresos|floatformat:"0g" }}</strong></div>
+  <div class="kpi"><span>Órdenes</span><strong>{{ n_ordenes }}</strong></div>
+  <div class="kpi"><span>Tickets vendidos</span><strong>{{ tickets_vendidos }}</strong></div>
+  <div class="kpi"><span>Ticket promedio (por orden)</span><strong>$ {{ ticket_promedio|floatformat:"0g" }}</strong></div>
+  <div class="kpi"><span>Categoría más vendida</span>
+    <strong>{% if categoria_top %}{{ categoria_top.nombre }}{% else %}—{% endif %}</strong></div>
+</div>
+
+<h2>Ventas por categoría</h2>
+<table>
+  <thead><tr><th>Categoría</th><th>Tickets</th><th>Ingresos</th><th style="width:30%"></th></tr></thead>
+  <tbody>
+  {% for c in por_categoria %}
+    <tr><td>{{ c.nombre }}</td><td>{{ c.tickets }}</td><td>$ {{ c.ingresos|floatformat:"0g" }}</td>
+        <td><div class="barra"><span style="width: {{ c.pct }}%"></span></div></td></tr>
+  {% empty %}<tr><td colspan="4">Aún no hay ventas.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Top 5 eventos</h2>
+<table>
+  <thead><tr><th>Evento</th><th>Tickets</th><th>Ingresos</th></tr></thead>
+  <tbody>
+  {% for e in top_eventos %}
+    <tr><td>{{ e.titulo }}</td><td>{{ e.tickets }}</td><td>$ {{ e.ingresos|floatformat:"0g" }}</td></tr>
+  {% empty %}<tr><td colspan="3">Sin datos.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Órdenes por estado</h2>
+<table>
+  <thead><tr><th>Estado</th><th>Órdenes</th><th>Monto</th></tr></thead>
+  <tbody>
+  {% for e in por_estado %}
+    <tr><td>{{ e.estado }}</td><td>{{ e.n }}</td><td>$ {{ e.monto|floatformat:"0g" }}</td></tr>
+  {% empty %}<tr><td colspan="3">Sin órdenes.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Últimos 7 días</h2>
+<table>
+  <thead><tr><th>Día</th><th>Órdenes</th><th>Ingresos</th></tr></thead>
+  <tbody>
+  {% for d in por_dia %}
+    <tr><td>{{ d.dia|date:"d/m/Y" }}</td><td>{{ d.ordenes }}</td><td>$ {{ d.ingresos|floatformat:"0g" }}</td></tr>
+  {% empty %}<tr><td colspan="3">Sin ventas recientes.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Mi carro{% endblock %}
+{% block content %}
+<h1>🛒 Tu carro</h1>
+
+{% if items %}
+<div class="carro-layout">
+  <section>
+    {% for i in items %}
+      <article class="item">
+        <div class="item-banner cat-{{ i.sector.evento.categoria }}">{{ i.emoji }}</div>
+        <div class="item-info">
+          <h3>{{ i.sector.evento.titulo }}</h3>
+          <p class="muted">{{ i.sector.nombre }} · {{ i.sector.evento.fecha_inicio|date:"d/m/Y H:i" }}</p>
+          <p class="timer" data-segundos="{{ i.segundos }}">⏱ <span class="reloj"></span></p>
+        </div>
+        <div class="item-precio">
+          <small class="muted">{{ i.cantidad }} × $ {{ i.sector.precio|floatformat:"0g" }}</small>
+          <strong>$ {{ i.subtotal|floatformat:"0g" }}</strong>
+        </div>
+        <form method="post" action="{% url 'quitar_del_carro' i.pk %}">{% csrf_token %}
+          <button class="quitar" type="submit" title="Quitar del carro" aria-label="Quitar del carro">✕</button>
+        </form>
+      </article>
+    {% endfor %}
+    <form method="post" action="{% url 'vaciar_carro' %}">{% csrf_token %}
+      <button class="btn btn-ghost btn-sm" type="submit">Vaciar carro</button>
+    </form>
+  </section>
+
+  <aside class="resumen">
+    <h3>Resumen de compra</h3>
+    <div class="fila-resumen"><span>Tickets</span><b>{{ total_tickets }} / {{ max_tickets }}</b></div>
+    <div class="total"><span>Total a pagar</span><strong>$ {{ total|floatformat:"0g" }}</strong></div>
+    <form method="post" action="{% url 'pagar_carro' %}">{% csrf_token %}
+      <button class="btn btn-grande" type="submit">Pagar ahora</button>
+    </form>
+    <p class="nota">💳 El pago está simulado. Al pagar validamos el stock, lo descontamos y generamos un ticket con código único por cada entrada.</p>
+    <a class="btn btn-ghost btn-sm" href="{% url 'home' %}#eventos">Seguir explorando</a>
+  </aside>
+</div>
+{% else %}
+  <div class="vacio">
+    <span>🛒</span>
+    <p>Tu carro está vacío. ¡Encuentra tu próximo evento!</p>
+    <a class="btn" href="{% url 'home' %}#eventos">Ver eventos</a>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  /* Cuenta regresiva de cada reserva (el tiempo real lo controla el servidor con expira_en). */
+  (function () {
+    var timers = document.querySelectorAll('.timer');
+    function pintar() {
+      timers.forEach(function (t) {
+        var s = parseInt(t.dataset.segundos, 10);
+        var reloj = t.querySelector('.reloj');
+        if (s <= 0) {
+          t.classList.add('vencida');
+          reloj.textContent = 'Reserva vencida: revisaremos la disponibilidad al pagar';
+          return;
+        }
+        var m = Math.floor(s / 60), r = s % 60;
+        reloj.textContent = 'Reservado por ' + m + ':' + (r < 10 ? '0' : '') + r;
+        t.dataset.segundos = s - 1;
+      });
+    }
+    pintar();
+    setInterval(pintar, 1000);
+  })();
+</script>
+{% endblock %}

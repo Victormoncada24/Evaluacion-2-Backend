@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Ingresar{% endblock %}
+{% block content %}
+<div class="auth">
+  <h2>Bienvenido de vuelta 👋</h2>
+  <p class="muted">Ingresa para ver tu carro y tus entradas.</p>
+  <form method="post">
+    {% csrf_token %}
+    {% if form.errors %}<p class="error">Usuario o contraseña incorrectos.</p>{% endif %}
+    <label for="{{ form.username.id_for_label }}">Usuario</label>
+    {{ form.username }}
+    <label for="{{ form.password.id_for_label }}">Contraseña</label>
+    {{ form.password }}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-grande" style="margin-top:1.2rem" type="submit">Entrar</button>
+  </form>
+  <p class="muted centro" style="margin-top:1rem">¿No tienes cuenta? <a href="{% url 'registro' %}">Regístrate</a></p>
+</div>
+{% endblock %}

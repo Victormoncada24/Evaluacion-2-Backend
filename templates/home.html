@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+
+{# ================= PORTADA ================= #}
+<section class="hero">
+  <div class="hero-texto">
+    <span class="pill">🎶 Conciertos · 🎪 Festivales · 🎭 Teatro · ⚽ Deportes</span>
+    <h1>Vive la <span class="grad">emoción en vivo</span></h1>
+    <p class="lead">Elige tu evento, reserva tu sector y recibe tus entradas con código único. Rápido, seguro y sin filas.</p>
+
+    <form method="get" action="{% url 'home' %}#eventos" class="buscador">
+      <input type="text" name="q" value="{{ q }}" placeholder="🔎 Busca un artista o evento">
+      <select name="categoria">
+        <option value="">Todas las categorías</option>
+        {% for valor, etiqueta, emoji in categorias %}
+          <option value="{{ valor }}" {% if valor == categoria %}selected{% endif %}>{{ emoji }} {{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn" type="submit">Buscar</button>
+    </form>
+
+    <div class="hero-stats">
+      <div><strong>{{ cifras.eventos }}</strong><span>eventos</span></div>
+      <div><strong>{{ cifras.artistas }}</strong><span>artistas</span></div>
+      <div><strong>{{ cifras.ciudades }}</strong><span>ciudades</span></div>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    {% if proximo %}
+      <a class="ticket-demo cat-{{ proximo.categoria }}" href="{% url 'evento_detalle' proximo.pk %}">
+        <span class="etiqueta">PRÓXIMO EVENTO</span>
+        <span class="gran-emoji">{{ proximo.emoji }}</span>
+        <strong>{{ proximo.titulo }}</strong>
+        <span>{{ proximo.artista }}</span>
+        <span class="linea"></span>
+        <span class="fila"><span>{{ proximo.fecha_inicio|date:"d/m/Y" }}</span><span>{{ proximo.recinto.ciudad }}</span></span>
+        <span class="barras"></span>
+      </a>
+    {% else %}
+      <div class="ticket-demo cat-OTRO"><span class="gran-emoji">🎟️</span><strong>Muy pronto nuevos eventos</strong></div>
+    {% endif %}
+  </div>
+</section>
+
+{# ================= CATEGORÍAS ================= #}
+<section class="chips">
+  <a class="chip {% if not categoria %}activo{% endif %}" href="{% url 'home' %}#eventos">✨ Todos</a>
+  {% for valor, etiqueta, emoji in categorias %}
+    <a class="chip {% if valor == categoria %}activo{% endif %}" href="?categoria={{ valor }}#eventos">{{ emoji }} {{ etiqueta }}</a>
+  {% endfor %}
+</section>
+
+{# ================= EVENTOS ================= #}
+<section id="eventos">
+  <div class="titulo-seccion">
+    <h2>Próximos eventos</h2>
+    {% if q or categoria %}<a href="{% url 'home' %}#eventos" class="muted">Quitar filtros ✕</a>{% endif %}
+  </div>
+
+  <div class="grid">
+    {% for e in eventos %}
+      <article class="evento-card">
+        <a class="banner cat-{{ e.categoria }}" href="{% url 'evento_detalle' e.pk %}">
+          <span class="emoji">{{ e.emoji }}</span>
+          <span class="fecha"><b>{{ e.fecha_inicio|date:"d" }}</b>{{ e.fecha_inicio|date:"M" }}</span>
+        </a>
+        <div class="cuerpo">
+          <span class="badge">{{ e.get_categoria_display }}</span>
+          <h3>{{ e.titulo }}</h3>
+          <p class="artista">{{ e.artista }}</p>
+          <p class="muted">📍 {{ e.recinto.nombre }} · {{ e.recinto.ciudad }}<br>🕒 {{ e.fecha_inicio|date:"d/m/Y H:i" }}</p>
+          <div class="pie">
+            <div>{% if e.precio_desde is not None %}<small class="muted">Desde</small><strong>$ {{ e.precio_desde|floatformat:"0g" }}</strong>{% endif %}</div>
+            <a class="btn btn-sm" href="{% url 'evento_detalle' e.pk %}">Elegir sector</a>
+          </div>
+        </div>
+      </article>
+    {% empty %}
+      <div class="vacio">
+        <span>🔍</span>
+        <p>No encontramos eventos con esa búsqueda.</p>
+        <a class="btn btn-sm" href="{% url 'home' %}#eventos">Ver todos</a>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# ================= CÓMO FUNCIONA ================= #}
+<section class="pasos">
+  <div class="titulo-seccion"><h2>Así de fácil</h2></div>
+  <div class="pasos-grid">
+    <div class="paso"><span class="num">1</span><h3>🎤 Elige tu evento</h3><p>Explora conciertos, festivales, teatro y deportes con filtros por categoría o artista.</p></div>
+    <div class="paso"><span class="num">2</span><h3>🗺️ Escoge tu sector</h3><p>Mira el mapa del recinto y selecciona tu ubicación. Reservamos tus entradas por {{ minutos_reserva }} minutos (hasta {{ max_tickets }} por compra).</p></div>
+    <div class="paso"><span class="num">3</span><h3>🎟️ Paga y disfruta</h3><p>Recibe cada ticket con un código único (UUID) en <b>Mis entradas</b>.</p></div>
+  </div>
+</section>
+
+{# ================= LLAMADO A ORGANIZADORES ================= #}
+{% if not user.is_authenticated %}
+<section class="cta">
+  <div>
+    <h2>¿Organizas eventos?</h2>
+    <p>Crea tu cuenta de organizador, publica tus conciertos y gestiona las ventas desde la API.</p>
+  </div>
+  <a class="btn" href="{% url 'registro' %}">Crear cuenta gratis</a>
+</section>
+{% endif %}
+{% endblock %}
