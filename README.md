@@ -4,7 +4,7 @@ Django REST Framework + PostgreSQL + JWT (SimpleJWT) + django-filter + drf-spect
 
 ## Puesta en marcha
 ```bash
-python -m venv venv && source venv/bin/activate      # Windows: venv\Scripts\activate
+python -m venv .venv      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                                  # completa BD y datos del alumno
 # Crear la BD en PostgreSQL:  CREATE DATABASE boletaje;
