@@ -30,6 +30,8 @@ class ItemCarro(models.Model):
     sector = models.ForeignKey('catalogo.Sector', on_delete=models.CASCADE,
                                related_name='items_carro')
     cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    # Solo para sectores numerados: los asientos elegidos (cantidad == asientos.count())
+    asientos = models.ManyToManyField('catalogo.Asiento', blank=True, related_name='items_carro')
     # Temporizador: mientras expira_en > ahora, estos tickets están RESERVADOS
     expira_en = models.DateTimeField()
 
@@ -78,11 +80,16 @@ class DetalleOrden(models.Model):
     cantidad = models.PositiveIntegerField()
     # Se guarda el precio del momento: si el organizador lo cambia, el historial no se altera
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    # Asientos comprados (solo sectores numerados)
+    asientos = models.ManyToManyField('catalogo.Asiento', blank=True, related_name='detalles_orden')
 
 
 class Ticket(models.Model):
     orden = models.ForeignKey(Orden, on_delete=models.CASCADE, related_name='tickets')
     detalle = models.ForeignKey(DetalleOrden, on_delete=models.CASCADE, related_name='tickets')
+    # Asiento asignado (None en sectores generales). PROTECT: no se borra un asiento ya vendido.
+    asiento = models.ForeignKey('catalogo.Asiento', null=True, blank=True, on_delete=models.PROTECT,
+                                related_name='tickets')
     # UUID único e imposible de adivinar: es el código de la entrada
     codigo = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     creado = models.DateTimeField(auto_now_add=True)

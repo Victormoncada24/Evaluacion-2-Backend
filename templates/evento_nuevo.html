@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Nuevo evento{% endblock %}
+{% block content %}
+<style>
+  .auth.ancho { max-width:760px; }
+  .dos { display:grid; grid-template-columns:1fr 1fr; gap:0 1rem; }
+  .fila-sector { display:grid; grid-template-columns:2fr 1.2fr 1fr 1fr 1fr auto; gap:.5rem; align-items:center; margin-bottom:.5rem; }
+  .fila-sector.cab { font-size:.75rem; color:var(--suave); margin-bottom:.2rem; }
+  .subtitulo { margin:1.6rem 0 .2rem; padding-top:1rem; border-top:1px solid var(--borde); }
+  @media (max-width:640px) { .dos { grid-template-columns:1fr; } .fila-sector { grid-template-columns:1fr 1fr; } .fila-sector.cab { display:none; } }
+</style>
+
+<div class="auth ancho">
+  <h2>➕ Nuevo evento</h2>
+  <p class="muted">Crea el evento, su recinto y los sectores con precio y stock.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <label for="{{ form.titulo.id_for_label }}">{{ form.titulo.label }}</label>
+    {{ form.titulo }}{{ form.titulo.errors }}
+
+    <div class="dos">
+      <div><label for="{{ form.artista.id_for_label }}">{{ form.artista.label }}</label>{{ form.artista }}{{ form.artista.errors }}</div>
+      <div><label for="{{ form.categoria.id_for_label }}">{{ form.categoria.label }}</label>{{ form.categoria }}{{ form.categoria.errors }}</div>
+      <div><label for="{{ form.fecha_inicio.id_for_label }}">{{ form.fecha_inicio.label }}</label>{{ form.fecha_inicio }}{{ form.fecha_inicio.errors }}</div>
+      <div><label for="{{ form.organizador.id_for_label }}">{{ form.organizador.label }}</label>{{ form.organizador }}{{ form.organizador.errors }}</div>
+    </div>
+
+    <label for="{{ form.descripcion.id_for_label }}">{{ form.descripcion.label }}</label>
+    {{ form.descripcion }}
+
+    <h3 class="subtitulo">📍 Recinto</h3>
+    <label for="{{ form.recinto.id_for_label }}">{{ form.recinto.label }}</label>
+    {{ form.recinto }}{{ form.recinto.errors }}
+    <p class="ayuda">Si eliges «Crear un recinto nuevo», completa estos datos:</p>
+    <div class="dos">
+      <div><label>{{ form.recinto_nombre.label }}</label>{{ form.recinto_nombre }}</div>
+      <div><label>{{ form.recinto_ciudad.label }}</label>{{ form.recinto_ciudad }}</div>
+      <div><label>{{ form.recinto_direccion.label }}</label>{{ form.recinto_direccion }}</div>
+      <div><label>{{ form.recinto_capacidad.label }}</label>{{ form.recinto_capacidad }}{{ form.recinto_capacidad.errors }}</div>
+    </div>
+
+    <h3 class="subtitulo">🗺️ Sectores</h3>
+    <p class="ayuda">Nombre, precio (CLP, número entero) y stock total. Para <b>asientos numerados</b> deja el stock vacío y
+      completa <b>Filas</b> (máx. 26) y <b>Asientos por fila</b> (máx. 50): el stock se calcula solo (filas × asientos).</p>
+    {% for e in errores_sectores %}<p class="error">{{ e }}</p>{% endfor %}
+    <div class="fila-sector cab"><span>Nombre</span><span>Precio</span><span>Stock</span><span>Filas</span><span>Asientos/fila</span><span></span></div>
+    <div id="sectores-filas">
+      {% for f in sectores %}
+        <div class="fila-sector">
+          <input name="sector_nombre" value="{{ f.nombre }}" placeholder="Ej: Cancha VIP" maxlength="80">
+          <input name="sector_precio" type="number" min="0" value="{{ f.precio }}" placeholder="Precio">
+          <input name="sector_stock" type="number" min="1" value="{{ f.stock }}" placeholder="Stock">
+          <input name="sector_filas" type="number" min="1" max="26" value="{{ f.filas }}" placeholder="Filas">
+          <input name="sector_columnas" type="number" min="1" max="50" value="{{ f.columnas }}" placeholder="Por fila">
+          <button type="button" class="quitar" data-quitar title="Quitar sector" aria-label="Quitar sector">✕</button>
+        </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" id="agregar-sector">+ Agregar sector</button>
+
+    <button class="btn btn-grande" style="margin-top:1.5rem" type="submit">Crear evento</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  /* Agrega / quita filas de sectores. Los datos se validan de nuevo en el servidor (panel/views.py). */
+  (function () {
+    var cont = document.getElementById('sectores-filas');
+    document.getElementById('agregar-sector').addEventListener('click', function () {
+      var fila = cont.firstElementChild.cloneNode(true);
+      fila.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+      cont.appendChild(fila);
+    });
+    cont.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-quitar]');
+      if (b && cont.children.length > 1) { b.parentElement.remove(); }
+    });
+  })();
+</script>
+{% endblock %}

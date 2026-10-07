@@ -21,12 +21,12 @@ from django.views.decorators.http import require_POST
 from rest_framework.exceptions import APIException, NotFound
 
 from accounts.models import Usuario
-from catalogo.models import Evento, Sector
+from catalogo.models import Evento, Recinto, Sector
 from ventas import services
-from ventas.models import DetalleOrden, ItemCarro, Orden, Ticket
+from ventas.models import Carro, DetalleOrden, ItemCarro, Orden, Ticket
 
 from .decorators import solo_admin, solo_espectador
-from .forms import RegistroForm
+from .forms import EventoAdminForm, RegistroForm
 
 # Emoji por categoría (decoración de tarjetas, carro y tickets)
 EMOJIS = {'CONCIERTO': '🎤', 'FESTIVAL': '🎪', 'TEATRO': '🎭', 'DEPORTE': '⚽', 'OTRO': '✨'}
@@ -86,10 +86,20 @@ def evento_detalle(request, pk):
         s.pocas = 0 < s.disponibles <= 10                     # etiqueta "últimas entradas"
 
     # Cuántos tickets más puede sumar a SU compra (el límite cuenta todo el carro)
-    ya_en_carro = 0
-    if request.user.is_authenticated and request.user.rol == Usuario.Rol.ESPECTADOR:
+    ya_en_carro, carro_usuario = 0, None
+    if (request.user.is_authenticated and request.user.rol == Usuario.Rol.ESPECTADOR
+            and not request.user.is_staff):
+        carro_usuario = Carro.objects.filter(usuario=request.user).first()
         ya_en_carro = (ItemCarro.objects.filter(carro__usuario=request.user)
                        .aggregate(t=Sum('cantidad'))['t'] or 0)
+
+    # Sectores numerados: asientos agrupados por fila, cada uno con su estado
+    for s in sectores:
+        if s.con_asientos:
+            por_fila = {}
+            for a in services.mapa_asientos(s, carro_usuario):
+                por_fila.setdefault(a['fila'], []).append(a)
+            s.mapa_filas = [{'letra': letra, 'asientos': asientos} for letra, asientos in por_fila.items()]
 
     return render(request, 'evento_detalle.html', {
         'evento': evento, 'sectores': sectores,
@@ -117,32 +127,42 @@ def registro(request):
 @solo_espectador
 def agregar_al_carro(request, pk):
     """
-    Recibe del mapa de sectores campos `cantidad_<id_sector>` y reserva las
-    entradas. Va dentro de UNA transacción: si un sector falla (stock, máximo de
-    5, etc.) no se agrega ninguno.
+    Recibe del mapa de sectores:
+      cantidad_<id_sector> = n            (sector general)
+      asiento_<id_sector>  = id (repetido, uno por asiento elegido)   (sector numerado)
+    y reserva las entradas. Va dentro de UNA transacción: si un sector falla (stock,
+    asiento ocupado, máximo de 5, etc.) no se agrega ninguno.
     """
     evento = get_object_or_404(Evento, pk=pk, activo=True)
-    pedidos = []
-    for clave, valor in request.POST.items():
-        if clave.startswith('cantidad_'):
-            try:
-                sector_id, cantidad = int(clave.split('_', 1)[1]), int(valor)
-            except ValueError:
-                continue
-            if cantidad > 0:
-                pedidos.append((sector_id, cantidad))
+    por_cantidad, por_asientos = [], []
+    for clave in request.POST.keys():
+        try:
+            if clave.startswith('cantidad_'):
+                cantidad = int(request.POST.get(clave))
+                if cantidad > 0:
+                    por_cantidad.append((int(clave.split('_', 1)[1]), cantidad))
+            elif clave.startswith('asiento_'):
+                ids = [int(v) for v in request.POST.getlist(clave)]
+                if ids:
+                    por_asientos.append((int(clave.split('_', 1)[1]), ids))
+        except ValueError:
+            continue
 
-    if not pedidos:
+    if not por_cantidad and not por_asientos:
         messages.warning(request, 'Elige al menos una entrada para continuar.')
         return redirect('evento_detalle', pk=pk)
 
     validos = set(Sector.objects.filter(evento=evento).values_list('id', flat=True))
     try:
         with transaction.atomic():
-            for sector_id, cantidad in pedidos:
+            for sector_id, cantidad in por_cantidad:
                 if sector_id not in validos:
                     raise NotFound('Uno de los sectores no pertenece a este evento.')
                 services.fijar_cantidad(request.user, sector_id, cantidad, sumar=True)
+            for sector_id, ids in por_asientos:
+                if sector_id not in validos:
+                    raise NotFound('Uno de los sectores no pertenece a este evento.')
+                services.fijar_asientos(request.user, sector_id, ids, sumar=True)
     except APIException as exc:
         messages.error(request, _texto_error(exc))
         return redirect('evento_detalle', pk=pk)
@@ -156,7 +176,7 @@ def carro(request):
     """Mi carro persistente (vive en PostgreSQL) con el tiempo restante de cada reserva."""
     c = services.obtener_carro(request.user)
     ahora = timezone.now()
-    items = list(c.items.select_related('sector__evento__recinto')
+    items = list(c.items.select_related('sector__evento__recinto').prefetch_related('asientos')
                  .order_by('sector__evento__fecha_inicio', '-sector__precio'))
     for i in items:
         i.subtotal = i.sector.precio * i.cantidad
@@ -207,7 +227,7 @@ def mis_entradas(request):
     """Tickets válidos del espectador (órdenes PAGADO o ENTREGADO), cada uno con su UUID."""
     tickets = list(Ticket.objects
                    .filter(orden__usuario=request.user, orden__estado__in=Orden.ESTADOS_CON_VENTA)
-                   .select_related('orden__evento__recinto', 'detalle__sector')
+                   .select_related('orden__evento__recinto', 'detalle__sector', 'asiento')
                    .order_by('-creado'))
     for t in tickets:
         t.emoji = EMOJIS.get(t.orden.evento.categoria, '🎟️')
@@ -265,6 +285,80 @@ def dashboard(request):
         'por_categoria': por_categoria, 'categoria_top': categoria_top,
         'top_eventos': top_eventos, 'por_estado': por_estado, 'por_dia': por_dia,
     })
+
+
+def _leer_sectores(post):
+    """
+    Lee las filas de sectores del formulario (listas sector_nombre / precio / stock / filas / columnas).
+    Si se indican filas Y asientos por fila el sector es NUMERADO y su stock se calcula solo.
+    Devuelve (filas para volver a mostrar, lista de errores). Cada fila válida trae además
+    n_precio, n_stock, n_filas y n_cols ya convertidos a número.
+    """
+    filas, errores, vistos = [], [], set()
+    campos = zip(post.getlist('sector_nombre'), post.getlist('sector_precio'), post.getlist('sector_stock'),
+                 post.getlist('sector_filas'), post.getlist('sector_columnas'))
+    for nombre, precio, stock, nfilas, ncols in campos:
+        nombre, precio, stock, nfilas, ncols = [v.strip() for v in (nombre, precio, stock, nfilas, ncols)]
+        if not (nombre or precio or stock or nfilas or ncols):
+            continue                                   # fila vacía: se ignora
+        fila = {'nombre': nombre, 'precio': precio, 'stock': stock, 'filas': nfilas, 'columnas': ncols}
+        filas.append(fila)
+
+        numerado = bool(nfilas or ncols)
+        invalido = not nombre or len(nombre) > 80 or not precio.isdigit()
+        if numerado:   # filas 1-26 y asientos por fila 1-50
+            invalido = invalido or not (nfilas.isdigit() and ncols.isdigit()
+                                        and 1 <= int(nfilas) <= 26 and 1 <= int(ncols) <= 50)
+        else:          # sector general: stock mínimo 1
+            invalido = invalido or not stock.isdigit() or int(stock) < 1
+
+        if invalido:
+            errores.append(f'Sector "{nombre or "sin nombre"}": revisa nombre, precio (entero) y '
+                           f'stock (mínimo 1) o filas (1-26) y asientos por fila (1-50).')
+        elif nombre.lower() in vistos:
+            errores.append(f'El sector "{nombre}" está repetido.')
+        else:
+            fila.update(n_precio=int(precio), n_filas=int(nfilas) if numerado else 0,
+                        n_cols=int(ncols) if numerado else 0,
+                        n_stock=int(nfilas) * int(ncols) if numerado else int(stock))
+        vistos.add(nombre.lower())
+    if not filas:
+        errores.append('Agrega al menos un sector con su precio y stock.')
+    return (filas or [{}]), errores
+
+
+@solo_admin
+def evento_nuevo(request):
+    """
+    El administrador crea un evento con su recinto y sectores en una sola pantalla.
+    Todo va en UNA transacción: si algo falla no queda nada a medias.
+    """
+    form = EventoAdminForm(request.POST or None)
+    sectores, errores_sectores = [{}], []
+
+    if request.method == 'POST':
+        sectores, errores_sectores = _leer_sectores(request.POST)
+        if form.is_valid() and not errores_sectores:
+            d = form.cleaned_data
+            with transaction.atomic():
+                recinto = d['recinto'] or Recinto.objects.create(
+                    nombre=d['recinto_nombre'], direccion=d['recinto_direccion'],
+                    ciudad=d['recinto_ciudad'], capacidad=d['recinto_capacidad'])
+                evento = Evento.objects.create(
+                    organizador=d['organizador'] or request.user, recinto=recinto,
+                    titulo=d['titulo'], artista=d['artista'], categoria=d['categoria'],
+                    descripcion=d['descripcion'], fecha_inicio=d['fecha_inicio'], activo=True)
+                for f in sectores:
+                    sector = Sector.objects.create(
+                        evento=evento, nombre=f['nombre'], precio=f['n_precio'], stock=f['n_stock'],
+                        filas=f['n_filas'], asientos_por_fila=f['n_cols'])
+                    if sector.con_asientos:
+                        sector.generar_asientos()          # crea los asientos A1, A2, ... del sector
+            messages.success(request, f'Evento "{evento.titulo}" creado con {len(sectores)} sector(es).')
+            return redirect('evento_detalle', pk=evento.pk)
+
+    return render(request, 'evento_nuevo.html', {
+        'form': form, 'sectores': sectores, 'errores_sectores': errores_sectores})
 
 
 def pagina_no_encontrada(request, exception=None):

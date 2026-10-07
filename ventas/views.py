@@ -17,7 +17,7 @@ from .serializers import (ActualizarItemSerializer, AgregarItemSerializer, Cambi
 def _ordenes_base():
     """Consulta con joins/prefetch para no hacer una query por cada orden."""
     return (Orden.objects.select_related('evento', 'usuario')
-            .prefetch_related('detalles__sector', 'tickets'))
+            .prefetch_related('detalles__sector', 'detalles__asientos', 'tickets'))
 
 
 # ============================================================ CARRO (Espectador)
@@ -34,11 +34,17 @@ class CarroTicketsView(APIView):
 
     @extend_schema(request=AgregarItemSerializer, responses={201: CarroSerializer})
     def post(self, request):
-        """Agrega entradas de un sector (de cualquier evento) y las RESERVA (inicia el temporizador)."""
+        """
+        Agrega entradas y las RESERVA (inicia el temporizador). Sector general: {"sector": 1, "cantidad": 2}.
+        Sector numerado: {"sector": 3, "asientos": [41, 42]} (ids de /api/sectores/3/asientos/).
+        """
         ser = AgregarItemSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        carro = services.fijar_cantidad(request.user, ser.validated_data['sector'],
-                                        ser.validated_data['cantidad'], sumar=True)
+        datos = ser.validated_data
+        if 'asientos' in datos:        # sector numerado: asientos concretos
+            carro = services.fijar_asientos(request.user, datos['sector'], datos['asientos'], sumar=True)
+        else:                          # sector general: cantidad
+            carro = services.fijar_cantidad(request.user, datos['sector'], datos['cantidad'], sumar=True)
         return Response(CarroSerializer(carro).data, status=201)
 
     @extend_schema(responses=CarroSerializer)
@@ -58,7 +64,11 @@ class CarroItemDetalleView(APIView):
         ser = ActualizarItemSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         item = get_object_or_404(ItemCarro, pk=pk, carro__usuario=request.user)  # solo MI carro
-        carro = services.fijar_cantidad(request.user, item.sector_id, ser.validated_data['cantidad'])
+        datos = ser.validated_data
+        if 'asientos' in datos:        # reemplaza la lista de asientos del sector (vacía = quitar)
+            carro = services.fijar_asientos(request.user, item.sector_id, datos['asientos'])
+        else:
+            carro = services.fijar_cantidad(request.user, item.sector_id, datos['cantidad'])
         return Response(CarroSerializer(carro).data)
 
     @extend_schema(responses=CarroSerializer)
@@ -110,7 +120,7 @@ class MisEntradasView(ListAPIView):
             return Ticket.objects.none()
         return (Ticket.objects
                 .filter(orden__usuario=self.request.user, orden__estado__in=Orden.ESTADOS_CON_VENTA)
-                .select_related('orden__evento', 'detalle__sector').order_by('-creado'))
+                .select_related('orden__evento', 'detalle__sector', 'asiento').order_by('-creado'))
 
 
 # ======================================================= ORGANIZADOR: órdenes

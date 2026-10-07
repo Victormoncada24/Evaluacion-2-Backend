@@ -13,7 +13,7 @@ def datos_alumno(request):
     """
     contexto = {'ALUMNO': settings.ALUMNO, 'CARRO_CANTIDAD': 0}
     user = request.user
-    if user.is_authenticated and user.rol == Usuario.Rol.ESPECTADOR:
+    if user.is_authenticated and user.rol == Usuario.Rol.ESPECTADOR and not user.is_staff:
         contexto['CARRO_CANTIDAD'] = (
             ItemCarro.objects.filter(carro__usuario=user).aggregate(t=Sum('cantidad'))['t'] or 0)
     return contexto

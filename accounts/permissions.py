@@ -18,7 +18,8 @@ class EsEspectador(BasePermission):
     message = 'Solo los espectadores pueden usar el carro y comprar entradas.'
 
     def has_permission(self, request, view):
-        return _rol(request) == Usuario.Rol.ESPECTADOR
+        # Los administradores (is_staff) gestionan la plataforma: no compran ni tienen carro
+        return _rol(request) == Usuario.Rol.ESPECTADOR and not request.user.is_staff
 
 
 class EsOrganizador(BasePermission):

@@ -20,12 +20,13 @@
         <a href="{% url 'home' %}">Inicio</a>
         <a href="{% url 'home' %}#eventos">Eventos</a>
         {% if user.is_authenticated %}
-          {% if user.rol == 'ESPECTADOR' %}
+          {% if user.rol == 'ESPECTADOR' and not user.is_staff %}
             <a href="{% url 'mis_entradas' %}">Mis entradas</a>
             <a href="{% url 'carro' %}">🛒 Carro{% if CARRO_CANTIDAD %}<span class="contador">{{ CARRO_CANTIDAD }}</span>{% endif %}</a>
           {% endif %}
           {% if user.is_staff %}
             <a href="{% url 'dashboard' %}">Dashboard</a>
+            <a href="{% url 'evento_nuevo' %}">➕ Nuevo evento</a>
             <a href="{% url 'swagger-ui' %}">API Docs</a>
           {% endif %}
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Salir ({{ user.username }})</button></form>

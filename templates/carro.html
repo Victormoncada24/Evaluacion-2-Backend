@@ -12,6 +12,7 @@
         <div class="item-info">
           <h3>{{ i.sector.evento.titulo }}</h3>
           <p class="muted">{{ i.sector.nombre }} · {{ i.sector.evento.fecha_inicio|date:"d/m/Y H:i" }}</p>
+          {% if i.asientos.all %}<p class="muted">🪑 {% for a in i.asientos.all %}{{ a.codigo }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
           <p class="timer" data-segundos="{{ i.segundos }}">⏱ <span class="reloj"></span></p>
         </div>
         <div class="item-precio">

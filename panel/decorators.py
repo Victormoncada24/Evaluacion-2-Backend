@@ -29,13 +29,13 @@ def solo_espectador(vista):
     Las pantallas de compra (carro, pago, mis entradas) son solo para el rol
     ESPECTADOR, igual que en la API (permiso EsEspectador).
       - Sin sesión  -> login y vuelve a la página pedida
-      - Otro rol    -> aviso y vuelta al inicio
+      - Otro rol o administrador (is_staff) -> aviso y vuelta al inicio
     """
     @wraps(vista)
     def envoltura(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect_to_login(request.get_full_path())
-        if request.user.rol != Usuario.Rol.ESPECTADOR:
+        if request.user.rol != Usuario.Rol.ESPECTADOR or request.user.is_staff:
             messages.error(request, 'Esta sección es solo para cuentas de espectador.')
             return redirect('home')
         return vista(request, *args, **kwargs)

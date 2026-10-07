@@ -2,6 +2,7 @@
 {% load static %}
 {% block title %}{{ evento.titulo }}{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{% static 'css/asientos.css' %}">
 
 {# ================= CABECERA DEL EVENTO ================= #}
 <section class="evento-hero cat-{{ evento.categoria }}">
@@ -23,29 +24,60 @@
 
   <section class="mapa">
     <h2>🗺️ Elige tu ubicación</h2>
-    <p class="muted">Toca un sector para sumar una entrada. Usa + y − para ajustar la cantidad.</p>
+    <p class="muted">Toca un sector. En los sectores generales usa + y −; en los numerados elige tus asientos en el mapa.</p>
 
     <div class="escenario">ESCENARIO</div>
 
     <div class="sectores">
       {% for s in sectores %}
-        <div class="sector tono-{{ s.tono }}{% if s.disponibles == 0 %} agotado{% endif %}"
-             style="width: {{ s.ancho }}%"
-             data-id="{{ s.id }}" data-nombre="{{ s.nombre }}"
-             data-precio="{{ s.precio|stringformat:'d' }}" data-disp="{{ s.disponibles }}">
-          <div class="sector-info">
-            <strong>{{ s.nombre }}</strong>
-            <span class="precio">$ {{ s.precio|floatformat:"0g" }}</span>
-            {% if s.disponibles == 0 %}<small class="estado agot">Agotado</small>
-            {% elif s.pocas %}<small class="estado pocas">¡Últimas {{ s.disponibles }}!</small>
-            {% else %}<small class="estado">{{ s.disponibles }} disponibles</small>{% endif %}
+        <div class="sector-wrap tono-{{ s.tono }}" style="width: {{ s.ancho }}%">
+          <div class="sector tono-{{ s.tono }}{% if s.disponibles == 0 %} agotado{% endif %}"
+               {% if s.con_asientos %}data-asientos="1"{% endif %}
+               data-id="{{ s.id }}" data-nombre="{{ s.nombre }}"
+               data-precio="{{ s.precio|stringformat:'d' }}" data-disp="{{ s.disponibles }}">
+            <div class="sector-info">
+              <strong>{{ s.nombre }}</strong>
+              <span class="precio">$ {{ s.precio|floatformat:"0g" }}</span>
+              {% if s.con_asientos %}<small class="numerado">🪑 Asientos numerados</small>{% endif %}
+              {% if s.disponibles == 0 %}<small class="estado agot">Agotado</small>
+              {% elif s.pocas %}<small class="estado pocas">¡Últimas {{ s.disponibles }}!</small>
+              {% else %}<small class="estado">{{ s.disponibles }} disponibles</small>{% endif %}
+            </div>
+            {% if s.disponibles > 0 %}
+              {% if s.con_asientos %}
+                <button type="button" class="btn-asientos"><span class="txt-asientos">Elegir asientos</span> ▾</button>
+              {% else %}
+                <div class="stepper">
+                  <button type="button" data-accion="menos" aria-label="Quitar una entrada de {{ s.nombre }}">−</button>
+                  <output>0</output>
+                  <button type="button" data-accion="mas" aria-label="Agregar una entrada a {{ s.nombre }}">+</button>
+                </div>
+              {% endif %}
+            {% endif %}
           </div>
-          {% if s.disponibles > 0 %}
-          <div class="stepper">
-            <button type="button" data-accion="menos" aria-label="Quitar una entrada de {{ s.nombre }}">−</button>
-            <output>0</output>
-            <button type="button" data-accion="mas" aria-label="Agregar una entrada a {{ s.nombre }}">+</button>
-          </div>
+
+          {% if s.con_asientos and s.disponibles > 0 %}
+            <div class="panel-asientos" hidden>
+              <div class="pantalla">↑ HACIA EL ESCENARIO</div>
+              {% for fila in s.mapa_filas %}
+                <div class="fila-asientos">
+                  <span class="letra">{{ fila.letra }}</span>
+                  {% for a in fila.asientos %}
+                    <button type="button" class="asiento {{ a.estado }}" data-id="{{ a.id }}"
+                            data-codigo="{{ a.fila }}{{ a.numero }}"
+                            title="{{ a.etiqueta }} · {{ a.estado }}"
+                            {% if a.estado != 'LIBRE' %}disabled{% endif %}>{{ a.numero }}</button>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+              <div class="leyenda-asientos">
+                <span><i style="background:var(--s2)"></i>Libre</span>
+                <span><i style="background:var(--rosa)"></i>Tu elección</span>
+                <span><i style="background:var(--cyan)"></i>En tu carro</span>
+                <span><i style="background:var(--ambar)"></i>Reservado</span>
+                <span><i style="background:#475569"></i>Vendido</span>
+              </div>
+            </div>
           {% endif %}
         </div>
       {% empty %}
@@ -62,7 +94,7 @@
     <div class="total"><span>Total</span><strong id="total">$ 0</strong></div>
     <p class="limite">Tickets: <b id="cuenta">0</b> de {{ restantes }} posibles en esta compra</p>
 
-    {% if user.is_authenticated and user.rol == 'ESPECTADOR' %}
+    {% if user.is_authenticated and user.rol == 'ESPECTADOR' and not user.is_staff %}
       {% if restantes == 0 %}
         <p class="aviso">Ya tienes {{ max_tickets }} tickets en tu carro (el máximo por compra). <a href="{% url 'carro' %}">Ir al carro</a></p>
       {% endif %}
@@ -71,6 +103,8 @@
         <div id="campos"></div>
         <button class="btn btn-grande" id="btn-agregar" type="submit" disabled>Reservar y agregar al carro</button>
       </form>
+    {% elif user.is_staff %}
+      <p class="aviso">Eres administrador: puedes ver el evento, pero los administradores no compran entradas.</p>
     {% elif user.is_authenticated %}
       <p class="aviso">Tu cuenta no es de espectador, así que no puede comprar entradas.</p>
     {% else %}

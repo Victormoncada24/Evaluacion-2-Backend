@@ -9,7 +9,9 @@ from accounts.permissions import EsDuenoDelEvento, EsOrganizador, SoloLecturaOOr
 
 from .filters import EventoFilter, SectorFilter
 from .models import Evento, Recinto, Sector
-from .serializers import EventoSerializer, RecintoSerializer, SectorSerializer
+from .serializers import AsientoMapaSerializer, EventoSerializer, RecintoSerializer, SectorSerializer
+from ventas import services
+from ventas.models import Carro
 
 
 class ProtegidoMixin:
@@ -88,6 +90,17 @@ class SectorViewSet(ProtegidoMixin, viewsets.ModelViewSet):
         qs = Sector.objects.select_related('evento').con_disponibilidad()
         if getattr(self, 'swagger_fake_view', False):
             return qs.none()
-        if self.action in ('list', 'retrieve'):
+        if self.action in ('list', 'retrieve', 'asientos'):
             return qs.filter(evento__activo=True)
         return qs.filter(evento__organizador=self.request.user)
+
+    @extend_schema(responses=AsientoMapaSerializer(many=True))
+    @action(detail=True, methods=['get'], url_path='asientos', permission_classes=[AllowAny])
+    def asientos(self, request, pk=None):
+        """PUBLICO: mapa de asientos del sector con su estado (LIBRE, RESERVADO, VENDIDO, EN_TU_CARRO)."""
+        sector = self.get_object()
+        carro = None
+        u = request.user
+        if u.is_authenticated and u.rol == 'ESPECTADOR' and not u.is_staff:
+            carro = Carro.objects.filter(usuario=u).first()      # para marcar MIS asientos
+        return Response(services.mapa_asientos(sector, carro))

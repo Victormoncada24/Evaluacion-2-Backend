@@ -20,4 +20,5 @@ urlpatterns = [
     path('mis-entradas/', views.mis_entradas, name='mis_entradas'),
     # ---- Administrador
     path('panel/', views.dashboard, name='dashboard'),
+    path('panel/eventos/nuevo/', views.evento_nuevo, name='evento_nuevo'),
 ]

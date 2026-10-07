@@ -15,7 +15,8 @@
           <p class="muted">
             📅 {{ t.orden.evento.fecha_inicio|date:"d/m/Y H:i" }}<br>
             📍 {{ t.orden.evento.recinto.nombre }}, {{ t.orden.evento.recinto.ciudad }}<br>
-            🪑 Sector: <b>{{ t.detalle.sector.nombre }}</b> · Orden #{{ t.orden.pk }}
+            🪑 Sector: <b>{{ t.detalle.sector.nombre }}</b>{% if t.asiento %} · <b>{{ t.asiento.etiqueta }}</b>{% endif %}<br>
+            Orden #{{ t.orden.pk }}
           </p>
         </div>
         <div class="ticket-stub">

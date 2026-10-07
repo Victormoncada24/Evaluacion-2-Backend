@@ -1,0 +1,23 @@
+/* Mapa de asientos numerados (se carga solo en la página de detalle del evento) */
+.sector-wrap { display:flex; flex-direction:column; max-width:100%; }
+.sector-wrap .sector { width:100%; }
+.sector-wrap .sector-info small.numerado { opacity:.9; }
+.btn-asientos { background:rgba(0,0,0,.4); color:#fff; border:1px solid rgba(255,255,255,.45); border-radius:99px;
+                padding:.45rem 1rem; font:inherit; font-size:.9rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+.btn-asientos:hover { background:rgba(0,0,0,.6); }
+.panel-asientos { background:var(--bg2); border:1px solid var(--borde); border-radius:0 0 14px 14px;
+                  padding:1rem; margin-top:-8px; overflow-x:auto; }
+.panel-asientos[hidden] { display:none; }
+.panel-asientos .pantalla { text-align:center; font-size:.7rem; letter-spacing:.3em; color:var(--suave); margin-bottom:.7rem; }
+.fila-asientos { display:flex; align-items:center; justify-content:center; gap:.3rem; margin-bottom:.3rem; min-width:max-content; }
+.fila-asientos .letra { width:1.4rem; text-align:center; color:var(--suave); font-size:.8rem; font-weight:600; }
+.asiento { width:30px; height:30px; border:0; border-radius:8px 8px 4px 4px; font:inherit; font-size:.7rem; font-weight:700;
+           cursor:pointer; background:var(--s2,#34d399); color:#111; transition:transform .1s; }
+.asiento:hover:not(:disabled) { transform:scale(1.15); }
+.asiento:disabled { cursor:not-allowed; }
+.asiento.RESERVADO { background:var(--ambar); opacity:.5; }
+.asiento.VENDIDO { background:#475569; opacity:.45; }
+.asiento.EN_TU_CARRO { background:var(--cyan); opacity:.75; }
+.asiento.elegido { background:var(--rosa); color:#fff; transform:scale(1.15); box-shadow:0 0 12px var(--rosa); }
+.leyenda-asientos { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:.8rem; font-size:.76rem; color:var(--suave); }
+.leyenda-asientos i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:.3rem; vertical-align:middle; }
