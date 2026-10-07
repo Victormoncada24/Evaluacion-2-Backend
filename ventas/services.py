@@ -60,25 +60,21 @@ def fijar_cantidad(usuario, sector_id, cantidad, sumar=False):
         raise NotFound('El sector no existe.')
     _validar_evento_vendible(sector.evento)
 
-    # 3) Regla de diseño: el carro maneja un solo evento
-    if carro.items.exists() and carro.evento_id != sector.evento_id:
-        raise ValidationError('Tu carro tiene entradas de otro evento. Págalo o quita esos ítems primero.')
-
     existente = carro.items.filter(sector=sector).values_list('cantidad', flat=True).first() or 0
     if sumar:
         cantidad += existente
 
-    # 4) Regla: máximo MAX_TICKETS tickets por compra (suma de todo el carro)
+    # 3) Regla: máximo MAX_TICKETS tickets por compra (suma de todo el carro)
     en_otros_sectores = carro.items.exclude(sector=sector).aggregate(t=Sum('cantidad'))['t'] or 0
     if en_otros_sectores + cantidad > MAX_TICKETS:
         raise ValidationError(f'Máximo {MAX_TICKETS} tickets por compra.')
 
-    # 5) Disponibilidad = stock real - reservas vigentes de OTROS usuarios
+    # 4) Disponibilidad = stock real - reservas vigentes de OTROS usuarios
     disponibles = sector.stock - _reservado_por_otros(sector.id, carro)
     if cantidad > max(disponibles, 0):
         raise ValidationError(f'Solo quedan {max(disponibles, 0)} entradas disponibles en "{sector.nombre}".')
 
-    # 6) Guardamos y reiniciamos el temporizador.
+    # 5) Guardamos y reiniciamos el temporizador.
     #    Solo se renuevan los ítems con reserva vigente: uno ya vencido no
     #    "resucita" sin volver a validarse (podría haberlo reservado otra persona).
     ahora = timezone.now()
@@ -87,8 +83,7 @@ def fijar_cantidad(usuario, sector_id, cantidad, sumar=False):
     ItemCarro.objects.update_or_create(
         carro=carro, sector=sector,
         defaults={'cantidad': cantidad, 'expira_en': nueva_expiracion})
-    carro.evento = sector.evento
-    carro.save(update_fields=['evento', 'actualizado'])
+    carro.save(update_fields=['actualizado'])
     return carro
 
 
@@ -100,9 +95,16 @@ def quitar_item(usuario, item_id):
     borrados, _ = carro.items.filter(pk=item_id).delete()
     if not borrados:
         raise NotFound('Ese ítem no está en tu carro.')
-    if not carro.items.exists():
-        carro.evento = None
-        carro.save(update_fields=['evento', 'actualizado'])
+    carro.save(update_fields=['actualizado'])
+    return carro
+
+
+@transaction.atomic
+def vaciar_carro(usuario):
+    """Quita todos los ítems del carro (libera todas sus reservas)."""
+    carro = obtener_carro(usuario)
+    carro.items.all().delete()
+    carro.save(update_fields=['actualizado'])
     return carro
 
 
@@ -110,7 +112,9 @@ def quitar_item(usuario, item_id):
 @transaction.atomic
 def hacer_checkout(usuario):
     """
-    Convierte el carro en una Orden pagada.
+    Convierte el carro en Orden(es) PAGADAS y devuelve una lista.
+    Como el carro puede mezclar eventos de distintos organizadores, se crea
+    UNA orden por evento (así cada organizador gestiona solo las suyas).
     Todo ocurre en UNA transacción: si cualquier paso falla, no queda nada a medias.
     """
     carro = Carro.objects.select_for_update().filter(usuario=usuario).first()
@@ -120,37 +124,44 @@ def hacer_checkout(usuario):
 
     if sum(i.cantidad for i in items) > MAX_TICKETS:
         raise ValidationError(f'Máximo {MAX_TICKETS} tickets por compra.')
-    evento = items[0].sector.evento
-    _validar_evento_vendible(evento)
+    for item in items:
+        _validar_evento_vendible(item.sector.evento)
 
     # Bloqueo ordenado por id (evita deadlocks entre compras simultáneas)
     sectores = {s.id: s for s in Sector.objects.select_for_update()
                 .filter(pk__in=[i.sector_id for i in items]).order_by('pk')}
 
-    # Validación de stock: real - reservas vigentes de otros compradores
-    total = Decimal('0')
+    # Validación de stock: real - reservas vigentes de otros compradores.
+    # Si falta stock en CUALQUIER ítem, se rechaza todo el pago (rollback).
     for item in items:
         sector = sectores[item.sector_id]
         disponibles = sector.stock - _reservado_por_otros(sector.id, carro)
         if item.cantidad > disponibles:
             raise ValidationError(f'Ya no hay stock suficiente en "{sector.nombre}" (quedan {max(disponibles, 0)}).')
-        total += sector.precio * item.cantidad
 
-    # Se crea la orden como PENDIENTE con su detalle (precio congelado)...
-    orden = Orden.objects.create(usuario=usuario, evento=evento, estado=Orden.Estado.PENDIENTE, total=total)
-    DetalleOrden.objects.bulk_create([
-        DetalleOrden(orden=orden, sector=sectores[i.sector_id], cantidad=i.cantidad,
-                     precio_unitario=sectores[i.sector_id].precio)
-        for i in items])
+    # Agrupamos los ítems por evento y generamos una orden por cada uno
+    por_evento = {}
+    for item in items:
+        por_evento.setdefault(item.sector.evento_id, []).append(item)
 
-    # ...y se "paga" (aquí iría la pasarela de pago real; está simulada).
-    pagar_orden(orden)
+    ordenes = []
+    for evento_items in por_evento.values():
+        evento = evento_items[0].sector.evento
+        total = sum((sectores[i.sector_id].precio * i.cantidad for i in evento_items), Decimal('0'))
+        # Orden PENDIENTE + detalle con el precio congelado de este instante...
+        orden = Orden.objects.create(usuario=usuario, evento=evento,
+                                     estado=Orden.Estado.PENDIENTE, total=total)
+        DetalleOrden.objects.bulk_create([
+            DetalleOrden(orden=orden, sector=sectores[i.sector_id], cantidad=i.cantidad,
+                         precio_unitario=sectores[i.sector_id].precio)
+            for i in evento_items])
+        # ...y se "paga" (aquí iría la pasarela de pago real; está simulada).
+        ordenes.append(pagar_orden(orden))
 
     # El carro queda vacío pero SIGUE existiendo (1:1 con el usuario)
     carro.items.all().delete()
-    carro.evento = None
-    carro.save(update_fields=['evento', 'actualizado'])
-    return orden
+    carro.save(update_fields=['actualizado'])
+    return ordenes
 
 
 @transaction.atomic

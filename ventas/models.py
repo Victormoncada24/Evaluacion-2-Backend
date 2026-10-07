@@ -18,9 +18,6 @@ class Carro(models.Model):
     # OneToOne: cada usuario tiene exactamente UN carro activo y persistente
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                    related_name='carro')
-    # Un carro contiene entradas de UN solo evento a la vez (regla de diseño)
-    evento = models.ForeignKey('catalogo.Evento', null=True, blank=True,
-                               on_delete=models.SET_NULL, related_name='+')
     actualizado = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -28,6 +25,7 @@ class Carro(models.Model):
 
 
 class ItemCarro(models.Model):
+    # El carro puede mezclar sectores de DISTINTOS eventos (lo pide la pauta)
     carro = models.ForeignKey(Carro, on_delete=models.CASCADE, related_name='items')
     sector = models.ForeignKey('catalogo.Sector', on_delete=models.CASCADE,
                                related_name='items_carro')

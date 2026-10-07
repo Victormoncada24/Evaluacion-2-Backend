@@ -23,6 +23,8 @@ class CambiarEstadoSerializer(serializers.Serializer):
 # --------------------------------------------------------------------- carro
 class ItemCarroSerializer(serializers.ModelSerializer):
     sector_nombre = serializers.CharField(source='sector.nombre', read_only=True)
+    evento = serializers.IntegerField(source='sector.evento_id', read_only=True)
+    evento_titulo = serializers.CharField(source='sector.evento.titulo', read_only=True)
     precio_unitario = serializers.DecimalField(source='sector.precio', max_digits=10,
                                                decimal_places=2, read_only=True)
     subtotal = serializers.SerializerMethodField()
@@ -31,8 +33,8 @@ class ItemCarroSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ItemCarro
-        fields = ('id', 'sector', 'sector_nombre', 'cantidad', 'precio_unitario', 'subtotal',
-                  'expira_en', 'reserva_activa', 'segundos_restantes')
+        fields = ('id', 'sector', 'sector_nombre', 'evento', 'evento_titulo', 'cantidad',
+                  'precio_unitario', 'subtotal', 'expira_en', 'reserva_activa', 'segundos_restantes')
 
     def get_subtotal(self, obj):
         return obj.sector.precio * obj.cantidad
@@ -43,18 +45,13 @@ class ItemCarroSerializer(serializers.ModelSerializer):
 
 class CarroSerializer(serializers.ModelSerializer):
     items = ItemCarroSerializer(many=True, read_only=True)
-    evento_titulo = serializers.SerializerMethodField()
     total_tickets = serializers.SerializerMethodField()
     total_precio = serializers.SerializerMethodField()
     max_tickets = serializers.SerializerMethodField()
 
     class Meta:
         model = Carro
-        fields = ('id', 'evento', 'evento_titulo', 'items', 'total_tickets', 'total_precio',
-                  'max_tickets')
-
-    def get_evento_titulo(self, obj):
-        return obj.evento.titulo if obj.evento else None
+        fields = ('id', 'items', 'total_tickets', 'total_precio', 'max_tickets')
 
     def get_total_tickets(self, obj):
         return sum(i.cantidad for i in obj.items.all())

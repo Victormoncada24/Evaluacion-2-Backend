@@ -22,7 +22,8 @@ def _ordenes_base():
 
 # ============================================================ CARRO (Espectador)
 @extend_schema(tags=['Carro'])
-class CarroView(APIView):
+class CarroTicketsView(APIView):
+    """GET/POST/DELETE /api/carro-tickets/ (según la matriz de roles de la pauta)."""
     permission_classes = [EsEspectador]
 
     @extend_schema(responses=CarroSerializer)
@@ -31,23 +32,24 @@ class CarroView(APIView):
         carro = services.obtener_carro(request.user)
         return Response(CarroSerializer(carro).data)
 
-
-@extend_schema(tags=['Carro'])
-class CarroItemsView(APIView):
-    permission_classes = [EsEspectador]
-
     @extend_schema(request=AgregarItemSerializer, responses={201: CarroSerializer})
     def post(self, request):
-        """Agrega entradas de un sector y las RESERVA (inicia el temporizador)."""
+        """Agrega entradas de un sector (de cualquier evento) y las RESERVA (inicia el temporizador)."""
         ser = AgregarItemSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         carro = services.fijar_cantidad(request.user, ser.validated_data['sector'],
                                         ser.validated_data['cantidad'], sumar=True)
         return Response(CarroSerializer(carro).data, status=201)
 
+    @extend_schema(responses=CarroSerializer)
+    def delete(self, request):
+        """Vacía todo el carro y libera todas sus reservas."""
+        return Response(CarroSerializer(services.vaciar_carro(request.user)).data)
+
 
 @extend_schema(tags=['Carro'])
 class CarroItemDetalleView(APIView):
+    """PATCH/DELETE /api/carro-tickets/{id}/ -> modificar o quitar UN ítem."""
     permission_classes = [EsEspectador]
 
     @extend_schema(request=ActualizarItemSerializer, responses=CarroSerializer)
@@ -66,15 +68,20 @@ class CarroItemDetalleView(APIView):
         return Response(CarroSerializer(carro).data)
 
 
-@extend_schema(tags=['Carro'])
-class CheckoutView(APIView):
+@extend_schema(tags=['Compras'])
+class PagarView(APIView):
+    """POST /api/compras/pagar/ -> checkout + pago."""
     permission_classes = [EsEspectador]
 
-    @extend_schema(request=None, responses={201: OrdenSerializer})
+    @extend_schema(request=None, responses={201: OrdenSerializer(many=True)})
     def post(self, request):
-        """Paga el carro: valida stock, lo descuenta, crea la orden y genera tickets UUID."""
-        orden = services.hacer_checkout(request.user)
-        return Response(OrdenSerializer(_ordenes_base().get(pk=orden.pk)).data, status=201)
+        """
+        Paga el carro: valida stock, lo descuenta, crea la orden (una por evento)
+        y genera un ticket con UUID único por cada entrada.
+        """
+        ordenes = services.hacer_checkout(request.user)
+        ids = [o.pk for o in ordenes]
+        return Response(OrdenSerializer(_ordenes_base().filter(pk__in=ids), many=True).data, status=201)
 
 
 # ========================================================= ESPECTADOR: historial
@@ -107,9 +114,9 @@ class MisEntradasView(ListAPIView):
 
 
 # ======================================================= ORGANIZADOR: órdenes
-@extend_schema(tags=['Organizador'])
-class OrdenesOrganizadorViewSet(viewsets.ReadOnlyModelViewSet):
-    """Órdenes de MIS eventos + cambio de estado (CANCELADO / ENTREGADO)."""
+@extend_schema(tags=['Compras'])
+class ComprasOrganizadorViewSet(viewsets.ReadOnlyModelViewSet):
+    """ORGANIZADOR: consulta las ventas de MIS eventos y cambia su estado (CANCELADO / ENTREGADO)."""
     serializer_class = OrdenSerializer
     permission_classes = [EsOrganizador]
     filterset_class = OrdenFilter

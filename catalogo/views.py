@@ -2,6 +2,7 @@ from django.db.models import Prefetch, ProtectedError
 from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from accounts.permissions import EsDuenoDelEvento, EsOrganizador, SoloLecturaOOrganizador
@@ -49,13 +50,22 @@ class EventoViewSet(ProtegidoMixin, viewsets.ModelViewSet):
               .prefetch_related(Prefetch('sectores', queryset=Sector.objects.con_disponibilidad())))
         if getattr(self, 'swagger_fake_view', False):   # generación del esquema OpenAPI
             return qs.none()
-        if self.action in ('list', 'retrieve'):
+        if self.action in ('list', 'retrieve', 'sectores'):
             return qs.filter(activo=True)               # lo que ve el público
         return qs.filter(organizador=self.request.user)  # escritura: solo lo propio
 
     def perform_create(self, serializer):
         # El organizador sale del token, nunca del cuerpo de la petición
         serializer.save(organizador=self.request.user)
+
+    @extend_schema(responses=SectorSerializer(many=True))
+    @action(detail=True, methods=['get'], url_path='sectores', permission_classes=[AllowAny])
+    def sectores(self, request, pk=None):
+        """PÚBLICO: sectores del evento con precio y entradas disponibles (acepta los filtros de sectores)."""
+        evento = self.get_object()
+        qs = Sector.objects.filter(evento=evento).con_disponibilidad().order_by('precio')
+        qs = SectorFilter(request.query_params, queryset=qs).qs
+        return Response(SectorSerializer(qs, many=True).data)
 
     @action(detail=False, methods=['get'], url_path='mis-eventos', permission_classes=[EsOrganizador])
     def mis_eventos(self, request):
