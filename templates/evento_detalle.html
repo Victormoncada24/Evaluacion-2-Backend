@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}{{ evento.titulo }}{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{% static 'css/asientos.css' %}">
+<link rel="stylesheet" href="{% static 'css/asientos.css' %}?v=2">
 
 {# ================= CABECERA DEL EVENTO ================= #}
 <section class="evento-hero cat-{{ evento.categoria }}">
@@ -118,4 +118,4 @@
 <p style="margin-top:1.5rem"><a class="btn btn-ghost btn-sm" href="{% url 'home' %}#eventos">← Volver a eventos</a></p>
 {% endblock %}
 
-{% block scripts %}<script src="{% static 'js/sectores.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/sectores.js' %}?v=2"></script>{% endblock %}

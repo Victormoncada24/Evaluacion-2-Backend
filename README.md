@@ -11,7 +11,7 @@ cp .env.example .env                                  # completa BD y datos del 
 python manage.py makemigrations accounts catalogo ventas   # accounts primero (usuario propio)
 python manage.py migrate
 python manage.py createsuperuser                      # este es el "administrador"
-python manage.py cargar_demo                          # opcional: datos de ejemplo
+python manage.py poblar_datos                          # opcional: datos de ejemplo
 python manage.py runserver
 ```
 - Inicio público: http://localhost:8000/
